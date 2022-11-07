@@ -1,7 +1,7 @@
 package game
 
 import (
-	"errors"
+	"fmt"
 )
 
 type Color int
@@ -13,40 +13,37 @@ const (
 	Yellow
 )
 
+func (c Color) String() string {
+	switch c {
+	case Blue:
+		return "blue"
+	case Green:
+		return "green"
+	case Red:
+		return "red"
+	case Yellow:
+		return "yellow"
+	default:
+		return fmt.Sprintf("%d", int(c))
+	}
+}
+
 type Player struct {
-	Name  string
-	Score int
+	Name string
 
 	cherries int
 	color    Color
-}
-
-func NewPlayer(playerColor Color) (player *Player, err error) {
-	player = new(Player)
-
-	if playerColor != Blue && playerColor != Green && playerColor != Red && playerColor != Yellow {
-		err = errors.New("invalid player color")
-	} else {
-		player.color = playerColor
-	}
-
-	return
 }
 
 func (player *Player) Cherries() int {
 	return player.cherries
 }
 
-func (player *Player) AddCherries(count int) {
+func (player *Player) UpdateCherries(count int) {
 	player.cherries += count
 	if player.cherries > winningScore {
 		player.cherries = winningScore
-	}
-}
-
-func (player *Player) RemoveCherries(count int) {
-	player.cherries -= count
-	if player.cherries < 0 {
+	} else if player.cherries < 0 {
 		player.cherries = 0
 	}
 }
