@@ -35,23 +35,23 @@ type Player struct {
 	color    Color
 }
 
-func (player *Player) Cherries() int {
-	return player.cherries
-}
+func (p Player) updateCherries(amount int) Player {
+	p.cherries += amount
 
-func (player *Player) UpdateCherries(count int) {
-	player.cherries += count
-	if player.cherries > winningScore {
-		player.cherries = winningScore
-	} else if player.cherries < 0 {
-		player.cherries = 0
+	switch {
+	case p.cherries < 0:
+		p.cherries = 0
+	case p.cherries > 10:
+		p.cherries = 10
 	}
+
+	return p
 }
 
-func (player *Player) Color() Color {
+func (player Player) Color() Color {
 	return player.color
 }
 
-func (player *Player) String() string {
+func (player Player) String() string {
 	return player.Name
 }

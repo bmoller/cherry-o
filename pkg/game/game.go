@@ -21,107 +21,104 @@ var (
 )
 
 type Game struct {
-	players map[string]*Player
+	playerCount int
+	players     [4]Player
 }
 
-func New() *Game {
-	return &Game{
-		players: make(map[string]*Player, 4),
-	}
+func (g Game) Players() []Player {
+	return g.players[:g.playerCount]
 }
 
-func (g *Game) Players() map[string]*Player {
-	return g.players
-}
-
-func (g *Game) AvailableColors() (colors []Color) {
-	stateMap := map[Color]bool{
+func (g Game) AvailableColors() (availability map[Color]bool) {
+	availability = map[Color]bool{
 		Blue:   true,
 		Green:  true,
 		Red:    true,
 		Yellow: true,
 	}
 
-	for _, player := range g.players {
-		stateMap[player.color] = false
-	}
-
-	for color, available := range stateMap {
-		if available {
-			colors = append(colors, color)
-		}
+	for i := 0; i < g.playerCount; i++ {
+		availability[g.players[i].color] = false
 	}
 
 	return
 }
 
-func (g *Game) AddPlayer(name string, color Color) error {
-	if g.players != nil && len(g.players) == 4 {
-		return errors.New("max player count reached; unable to add a new player")
-	}
+func (g Game) AddPlayer(name string, color Color) (Game, error) {
+	var err error
 
-	found := false
-	for _, availableColor := range g.AvailableColors() {
-		if color == availableColor {
-			found = true
-			break
+	switch {
+	case g.playerCount == 4:
+		err = errors.New("max player count reached; unable to add a new player")
+	case !g.AvailableColors()[color]:
+		err = fmt.Errorf("the %s color is not available", color)
+	default:
+		g.players[g.playerCount+1] = Player{
+			Name:  name,
+			color: color,
 		}
-	}
-	if !found {
-		return fmt.Errorf("color %s is not available", color)
+		g.playerCount++
 	}
 
-	g.players[name] = &Player{
-		Name:  name,
-		color: color,
-	}
-
-	return nil
+	return g, err
 }
 
-func (g *Game) RemovePlayer(player *Player) (err error) {
-	if g.players == nil || len(g.players) == 0 {
+func (g Game) RemovePlayer(name string) (Game, error) {
+	var err error
+
+	switch {
+	case g.playerCount == 0:
 		err = errors.New("no players to remove")
-	} else {
-		var found bool
-		for name := range g.players {
-			if name == player.Name {
+	case name == "":
+		err = errors.New("must provide a valid name")
+	default:
+		var (
+			found   bool
+			players [4]Player = [4]Player{}
+		)
+
+		for i := 0; i < g.playerCount; i++ {
+			if g.players[i].Name == name {
 				found = true
-				break
+				g.playerCount--
+			} else {
+				players[i] = g.players[i]
 			}
 		}
+		g.players = players
+
 		if !found {
-			err = fmt.Errorf("%s is not a current player", player.Name)
-		} else {
-			delete(g.players, player.Name)
+			err = fmt.Errorf("%s is not a current player", name)
 		}
 	}
 
-	return
+	return g, err
 }
 
-func (g *Game) Play() (transcript []Turn, winner *Player, err error) {
-	if g.players == nil || len(g.players) == 0 {
+func (g Game) Play() (turns []Turn, winner Player, err error) {
+	switch g.playerCount {
+	case 0:
 		err = errors.New("need at least one player to play")
-		return
-	}
+	default:
+		var (
+			turn     Turn
+			gameOver bool
+			i        int
+		)
 
-	var (
-		currentTurn Turn
-		gameOver    bool
-	)
-	for !gameOver {
-		for _, currentPlayer := range g.players {
-			currentTurn, err = takeTurn(currentPlayer)
-			if err != nil {
-				return
-			} else {
-				transcript = append(transcript, currentTurn)
-			}
-			if currentPlayer.cherries == winningScore {
-				gameOver = true
-				winner = currentPlayer
-				break
+		for !gameOver {
+			for i = 0; i < g.playerCount; i++ {
+				turn, g.players[i], err = takeTurn(g.players[i])
+				if err != nil {
+					return
+				} else {
+					turns = append(turns, turn)
+				}
+				if g.players[i].cherries == winningScore {
+					gameOver = true
+					winner = g.players[i]
+					break
+				}
 			}
 		}
 	}
@@ -130,31 +127,28 @@ func (g *Game) Play() (transcript []Turn, winner *Player, err error) {
 }
 
 type Turn struct {
-	spin   int
-	player *Player
+	Spin   int
+	Player Player
 }
 
-func (t Turn) Spin() int {
-	return t.spin
-}
+func takeTurn(player Player) (Turn, Player, error) {
+	var (
+		err  error
+		turn Turn
+	)
 
-func (t Turn) Player() *Player {
-	return t.player
-}
-
-func takeTurn(player *Player) (result Turn, err error) {
 	upperBound := big.NewInt(int64(len(spinnerValues)))
 	spin, err := rand.Int(rand.Reader, upperBound)
 	if err != nil {
 		err = fmt.Errorf("failed to generate a random number: %s", err)
 	} else {
 		value := spinnerValues[spin.Uint64()]
-		player.UpdateCherries(value)
-		result = Turn{
-			spin:   value,
-			player: player,
+		player = player.updateCherries(value)
+		turn = Turn{
+			Spin:   value,
+			Player: player,
 		}
 	}
 
-	return
+	return turn, player, err
 }
