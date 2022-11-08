@@ -84,17 +84,29 @@ func (c colorsDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 		return
 	}
 
+	var renderFunc func(string) string
+	switch typedItem.color {
+	case game.Blue:
+		renderFunc = styleBlue.Render
+	case game.Green:
+		renderFunc = styleGreen.Render
+	case game.Red:
+		renderFunc = styleRed.Render
+	case game.Yellow:
+		renderFunc = styleYellow.Render
+	}
+	itemText := renderFunc(typedItem.color.String())
 	if index == m.Index() {
-		fmt.Fprint(w, typedItem.color)
+		fmt.Fprint(w, " > ", itemText)
 	} else {
-		fmt.Fprint(w, typedItem.color)
+		fmt.Fprint(w, "   ", itemText)
 	}
 }
 
 // logic for player list
 
 type playerItem struct {
-	player *game.Player
+	player game.Player
 }
 
 func (p playerItem) FilterValue() string {

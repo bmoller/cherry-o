@@ -49,15 +49,15 @@ var (
 			Foreground(red).
 			Padding(1, 2)
 
-	styleTurnBlue = lipgloss.NewStyle().
+	styleBlue = lipgloss.NewStyle().
 			Foreground(blue)
 
-	styleTurnGreen = lipgloss.NewStyle().
+	styleGreen = lipgloss.NewStyle().
 			Foreground(green)
 
-	styleTurnRed = lipgloss.NewStyle().
+	styleRed = lipgloss.NewStyle().
 			Foreground(red)
 
-	styleTurnYellow = lipgloss.NewStyle().
+	styleYellow = lipgloss.NewStyle().
 			Foreground(yellow)
 )

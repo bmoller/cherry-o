@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -29,16 +29,17 @@ type model struct {
 	colorList    list.Model
 	currentState state
 	err          error
-	game         *game.Game
+	game         game.Game
 	nameInput    textinput.Model
 	playerList   list.Model
-	resultView   viewport.Model
-	winner       *game.Player
+	turnView     viewport.Model
+	turns        []game.Turn
+	winner       game.Player
 }
 
 func New() tea.Model {
-	colorList := list.New(nil, playersDelegate{}, 10, 4)
-	colorList.Title = "Players"
+	colorList := list.New(nil, colorsDelegate{}, 10, 6)
+	colorList.Title = "Select a Color"
 	for _, function := range []func(bool){
 		colorList.SetFilteringEnabled,
 		colorList.SetShowFilter,
@@ -71,10 +72,10 @@ func New() tea.Model {
 		bindHelp:   helpModel,
 		binds:      newKeyMap(),
 		colorList:  colorList,
-		game:       game.New(),
+		game:       game.Game{},
 		nameInput:  textinput.New(),
 		playerList: playerList,
-		resultView: viewport.New(50, 25),
+		turnView:   viewport.New(50, 25),
 	}
 }
 
@@ -83,13 +84,10 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	// Make sure the viewport is able to process messages about updating
-	var resultViewCmd tea.Cmd
-	if m.resultView, resultViewCmd = m.resultView.Update(msg); resultViewCmd != nil {
-		cmds = append(cmds, resultViewCmd)
-	}
+	var (
+		cmd tea.Cmd
+		err error
+	)
 
 	switch m.currentState {
 	case showError:
@@ -101,63 +99,81 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.currentState = main
 			}
 		}
+	case addPlayer:
+		switch keyMsg, ok := msg.(tea.KeyMsg); {
+		case ok && keyMsg.Type == tea.KeyEnter:
+			// all done; make the call to add a player
+			if m.game, err = m.game.AddPlayer(m.nameInput.Value(), m.colorList.SelectedItem().(colorItem).color); err != nil {
+				m.currentState = showError
+				m.err = err
+			} else {
+				m.currentState = main
+			}
+			m.nameInput.SetValue("")
+		case ok && (keyMsg.Type == tea.KeyUp || keyMsg.Type == tea.KeyDown):
+			// moving color selection up or down
+			m.colorList, cmd = m.colorList.Update(msg)
+		default:
+			// send everything else to the name field
+			m.nameInput, cmd = m.nameInput.Update(msg)
+		}
 	default:
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
 			switch {
 			case key.Matches(msg, m.binds.AddPlayer):
-				m.currentState = addPlayer
-			case key.Matches(msg, m.binds.Play):
-				if transcript, winner, err := m.game.Play(); err != nil {
-					m.err = err
+				if colors := m.game.AvailableColors(); len(colors) == 0 {
+					m.err = errors.New("only 4 players can play at a time")
 					m.currentState = showError
 				} else {
-					m.winner = winner
-					results := make([]string, len(transcript))
-					for i, turn := range transcript {
-						summary := fmt.Sprintf("%s got %d more cherries", turn.Player().Name, turn.Spin())
-						switch turn.Player().Color() {
-						case game.Blue:
-							results[i] = styleTurnBlue.Render(summary)
-						case game.Green:
-							results[i] = styleTurnGreen.Render(summary)
-						case game.Red:
-							results[i] = styleTurnRed.Render(summary)
-						case game.Yellow:
-							results[i] = styleTurnYellow.Render(summary)
-						default:
-							results[i] = summary
+					var colorList []list.Item
+					for color, available := range colors {
+						if available {
+							colorList = append(colorList, colorItem{
+								color: color,
+							})
 						}
 					}
-					m.resultView.SetContent(lipgloss.JoinVertical(lipgloss.Left, results...))
-					if cmd := viewport.Sync(m.resultView); cmd != nil {
-						cmds = append(cmds, cmd)
-					}
+					cmd = m.colorList.SetItems(colorList)
+					m.currentState = addPlayer
+				}
+			case key.Matches(msg, m.binds.Play):
+				if turns, winner, err := m.game.Play(); err != nil {
+					m.err = err
+					m.currentState = showError
+				} else {
+					m.turns = turns
+					m.winner = winner
 				}
 			case key.Matches(msg, m.binds.Quit):
-				return m, tea.Quit
+				cmd = tea.Quit
 			case key.Matches(msg, m.binds.RemovePlayer):
-				player := m.playerList.SelectedItem().(playerItem).player
-				if err := m.game.RemovePlayer(player); err != nil {
+				switch {
+				case len(m.playerList.Items()) == 0:
+					m.err = errors.New("no players to remove")
 					m.currentState = showError
-					m.err = err
-				} else {
-					var players []list.Item
-					for _, player := range m.game.Players() {
-						players = append(players, playerItem{
-							player: player,
-						})
+				default:
+					if m.game, err = m.game.RemovePlayer(m.playerList.SelectedItem().(playerItem).player.Name); err != nil {
+						m.err = err
+						m.currentState = showError
+					} else {
+						var players []list.Item
+						for _, player := range m.game.Players() {
+							players = append(players, playerItem{
+								player: player,
+							})
+						}
+						cmd = m.playerList.SetItems(players)
+						m.currentState = main
 					}
-					if cmd := m.playerList.SetItems(players); cmd != nil {
-						cmds = append(cmds, cmd)
-					}
-					m.currentState = main
 				}
 			}
+		default:
+			m.turnView, cmd = m.turnView.Update(msg)
 		}
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, cmd
 }
 
 func (m model) View() string {
@@ -175,8 +191,13 @@ func (m model) View() string {
 			styleErrorMsg.Render(m.err.Error()),
 			lipgloss.WithWhitespaceChars("-"),
 			lipgloss.WithWhitespaceForeground(yellow))
+	case addPlayer:
+		rightSide = lipgloss.JoinVertical(lipgloss.Center,
+			"Add a Player",
+			m.nameInput.View(),
+			m.colorList.View())
 	default:
-		rightSide = m.resultView.View()
+		rightSide = m.turnView.View()
 	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top,
