@@ -50,6 +50,8 @@ func (g Game) AddPlayer(name string, color Color) (Game, error) {
 	switch {
 	case g.playerCount == len(g.players):
 		err = errors.New("max player count reached; unable to add a new player")
+	case name == "":
+		err = errors.New("must provide a valid name")
 	case !g.AvailableColors()[color]:
 		err = fmt.Errorf("the %s color is not available", color)
 	default:
@@ -77,18 +79,20 @@ func (g Game) RemovePlayer(name string) (Game, error) {
 			players [MaxPlayers]Player
 		)
 
-		for i := 0; i < g.playerCount; i++ {
+		for i, j := 0, 0; i < g.playerCount; i++ {
 			if g.players[i].Name == name {
 				found = true
-				g.playerCount--
 			} else {
-				players[i] = g.players[i]
+				players[j] = g.players[i]
+				j++
 			}
 		}
 		g.players = players
 
 		if !found {
 			err = fmt.Errorf("%s is not a current player", name)
+		} else {
+			g.playerCount--
 		}
 	}
 
