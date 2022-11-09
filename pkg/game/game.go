@@ -8,12 +8,8 @@ import (
 )
 
 const (
-	terminalBlue   = "\u001b[34m"
-	terminalGreen  = "\u001b[32m"
-	terminalRed    = "\u001b[31m"
-	terminalReset  = "\u001b[0m"
-	terminalYellow = "\u001b[33m"
-	winningScore   = 10
+	MaxPlayers   = 4
+	WinningScore = 10
 )
 
 var (
@@ -22,7 +18,11 @@ var (
 
 type Game struct {
 	playerCount int
-	players     [4]Player
+	players     [MaxPlayers]Player
+}
+
+func (g Game) PlayerCount() int {
+	return g.playerCount
 }
 
 func (g Game) Players() []Player {
@@ -48,12 +48,12 @@ func (g Game) AddPlayer(name string, color Color) (Game, error) {
 	var err error
 
 	switch {
-	case g.playerCount == 4:
+	case g.playerCount == len(g.players):
 		err = errors.New("max player count reached; unable to add a new player")
 	case !g.AvailableColors()[color]:
 		err = fmt.Errorf("the %s color is not available", color)
 	default:
-		g.players[g.playerCount+1] = Player{
+		g.players[g.playerCount] = Player{
 			Name:  name,
 			color: color,
 		}
@@ -74,7 +74,7 @@ func (g Game) RemovePlayer(name string) (Game, error) {
 	default:
 		var (
 			found   bool
-			players [4]Player = [4]Player{}
+			players [MaxPlayers]Player
 		)
 
 		for i := 0; i < g.playerCount; i++ {
@@ -114,7 +114,7 @@ func (g Game) Play() (turns []Turn, winner Player, err error) {
 				} else {
 					turns = append(turns, turn)
 				}
-				if g.players[i].cherries == winningScore {
+				if g.players[i].cherries == WinningScore {
 					gameOver = true
 					winner = g.players[i]
 					break

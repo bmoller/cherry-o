@@ -28,6 +28,10 @@ func (c Color) String() string {
 	}
 }
 
+func (c Color) FilterValue() string {
+	return c.String()
+}
+
 type Player struct {
 	Name string
 
@@ -41,17 +45,21 @@ func (p Player) updateCherries(amount int) Player {
 	switch {
 	case p.cherries < 0:
 		p.cherries = 0
-	case p.cherries > 10:
-		p.cherries = 10
+	case p.cherries > WinningScore:
+		p.cherries = WinningScore
 	}
 
 	return p
 }
 
-func (player Player) Color() Color {
-	return player.color
+func (p Player) Color() Color {
+	return p.color
 }
 
-func (player Player) String() string {
-	return player.Name
+func (p Player) String() string {
+	return p.Name
+}
+
+func (p Player) FilterValue() string {
+	return p.String()
 }

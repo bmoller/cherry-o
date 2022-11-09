@@ -56,14 +56,6 @@ func newKeyMap() keyMap {
 
 // Logic for color list
 
-type colorItem struct {
-	color game.Color
-}
-
-func (c colorItem) FilterValue() string {
-	return c.color.String()
-}
-
 type colorsDelegate struct{}
 
 func (c colorsDelegate) Height() int {
@@ -79,13 +71,13 @@ func (c colorsDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
 }
 
 func (c colorsDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	typedItem, ok := item.(colorItem)
+	typedItem, ok := item.(game.Color)
 	if !ok {
 		return
 	}
 
 	var renderFunc func(string) string
-	switch typedItem.color {
+	switch typedItem {
 	case game.Blue:
 		renderFunc = styleBlue.Render
 	case game.Green:
@@ -95,7 +87,7 @@ func (c colorsDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 	case game.Yellow:
 		renderFunc = styleYellow.Render
 	}
-	itemText := renderFunc(typedItem.color.String())
+	itemText := renderFunc(typedItem.String())
 	if index == m.Index() {
 		fmt.Fprint(w, " > ", itemText)
 	} else {
@@ -104,14 +96,6 @@ func (c colorsDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 }
 
 // logic for player list
-
-type playerItem struct {
-	player game.Player
-}
-
-func (p playerItem) FilterValue() string {
-	return ""
-}
 
 type playersDelegate struct{}
 
@@ -128,14 +112,14 @@ func (p playersDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
 }
 
 func (p playersDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	typedItem, ok := item.(playerItem)
+	typedItem, ok := item.(game.Player)
 	if !ok {
 		return
 	}
 
 	if index == m.Index() {
-		fmt.Fprint(w, typedItem.player.Name)
+		fmt.Fprint(w, typedItem.Name)
 	} else {
-		fmt.Fprint(w, typedItem.player.Name)
+		fmt.Fprint(w, typedItem.Name)
 	}
 }
