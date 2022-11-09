@@ -35,17 +35,17 @@ func newKeyMap() keyMap {
 			key.WithKeys("a"),
 			key.WithHelp("a", "Add player"),
 		),
-		Dismiss: key.NewBinding(
-			key.WithKeys("esc", "enter"),
-			key.WithHelp("esc/enter", "Dismiss error"),
-		),
+		//Dismiss: key.NewBinding(
+		//	key.WithKeys("esc", "enter"),
+		//	key.WithHelp("esc/enter", "Dismiss error"),
+		//),
 		Play: key.NewBinding(
 			key.WithKeys("p"),
 			key.WithHelp("p", "Play game"),
 		),
 		Quit: key.NewBinding(
 			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "Quit"),
+			key.WithHelp("q", "Quit game"),
 		),
 		RemovePlayer: key.NewBinding(
 			key.WithKeys("r"),
@@ -112,14 +112,26 @@ func (p playersDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
 }
 
 func (p playersDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	typedItem, ok := item.(game.Player)
+	player, ok := item.(game.Player)
 	if !ok {
 		return
 	}
 
+	var renderFunc func(string) string
+	switch player.Color() {
+	case game.Blue:
+		renderFunc = styleBlue.Render
+	case game.Green:
+		renderFunc = styleGreen.Render
+	case game.Red:
+		renderFunc = styleRed.Render
+	case game.Yellow:
+		renderFunc = styleYellow.Render
+	}
+	styledName := renderFunc(player.Name)
 	if index == m.Index() {
-		fmt.Fprint(w, typedItem.Name)
+		fmt.Fprint(w, " > "+styledName)
 	} else {
-		fmt.Fprint(w, typedItem.Name)
+		fmt.Fprint(w, "   "+styledName)
 	}
 }

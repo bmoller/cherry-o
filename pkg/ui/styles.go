@@ -24,8 +24,13 @@ var (
 			AlignHorizontal(lipgloss.Center).
 			Border(lipgloss.NormalBorder(), true).
 			BorderForeground(green).
+			Height(8).
 			Margin(0, 2).
 			Width(30)
+
+	helpTitle = lipgloss.NewStyle().
+			Margin(1, 0).
+			Underline(true).Render("Help")
 
 	playersPane = lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).

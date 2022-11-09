@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -34,7 +35,6 @@ type model struct {
 	nameInput    textinput.Model
 	playerList   list.Model
 	turnView     viewport.Model
-	turns        []game.Turn
 	winner       game.Player
 }
 
@@ -56,7 +56,7 @@ func New() tea.Model {
 	helpModel.ShowAll = true
 	helpModel.Width = 30
 
-	playerList := list.New(nil, playersDelegate{}, 30, 4)
+	playerList := list.New(nil, playersDelegate{}, 30, 7)
 	playerList.Title = "Players"
 	for _, function := range []func(bool){
 		playerList.SetFilteringEnabled,
@@ -112,8 +112,9 @@ func updateShowError(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 func updateAddPlayer(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	var (
-		cmd tea.Cmd
-		err error
+		cmd  tea.Cmd
+		cmds []tea.Cmd
+		err  error
 	)
 
 	switch keyMsg, ok := msg.(tea.KeyMsg); {
@@ -123,18 +124,24 @@ func updateAddPlayer(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 			m.currentState = showError
 			m.err = err
 		} else {
+			var players []list.Item
+			for _, player := range m.game.Players() {
+				players = append(players, player)
+			}
+			cmds = append(cmds, m.playerList.SetItems(players))
 			m.currentState = main
 		}
-		m.nameInput.SetValue("")
+		m.nameInput.Reset()
 	case ok && (keyMsg.Type == tea.KeyUp || keyMsg.Type == tea.KeyDown):
 		// moving color selection up or down
 		m.colorList, cmd = m.colorList.Update(msg)
-	default:
-		// send everything else to the name field
-		m.nameInput, cmd = m.nameInput.Update(msg)
+		cmds = append(cmds, cmd)
 	}
+	// send everything else to the name field
+	m.nameInput, cmd = m.nameInput.Update(msg)
+	cmds = append(cmds, cmd)
 
-	return m, cmd
+	return m, tea.Batch(cmds...)
 }
 
 func updateMain(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
@@ -151,13 +158,19 @@ func updateMain(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.err = fmt.Errorf("only %d players can play at a time", game.MaxPlayers)
 				m.currentState = showError
 			} else {
-				var colorList []list.Item
+				var (
+					cmds      [2]tea.Cmd
+					colorList []list.Item
+				)
 				for color, available := range m.game.AvailableColors() {
 					if available {
 						colorList = append(colorList, color)
 					}
 				}
-				cmd = m.colorList.SetItems(colorList)
+				cmds[0] = m.nameInput.Focus()
+				cmds[1] = m.colorList.SetItems(colorList)
+				m.colorList.ResetSelected()
+				cmd = tea.Batch(cmds[:]...)
 				m.currentState = addPlayer
 			}
 		case key.Matches(msg, m.binds.Play):
@@ -165,7 +178,8 @@ func updateMain(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.err = err
 				m.currentState = showError
 			} else {
-				m.turns = turns
+				m.turnView.SetContent(renderTurns(turns))
+				cmd = viewport.Sync(m.turnView)
 				m.winner = winner
 			}
 		case key.Matches(msg, m.binds.Quit):
@@ -195,11 +209,52 @@ func updateMain(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func renderTurns(turns []game.Turn) string {
+	// spinnerValues = [7]int{1, 2, 3, 4, -2, -2, -10}
+	var (
+		format   string
+		output   strings.Builder
+		renderer func(string) string
+	)
+
+	for _, turn := range turns {
+		switch turn.Spin {
+		case -10:
+			format = "Oh no! %s lost 10 cherries!\n"
+		case -2:
+			format = "Uh-oh, %s lost 2 cherries.\n"
+		case 1:
+			format = "%s got another cherry.\n"
+		case 2:
+			format = "Hey, %s got 2 more cherries!\n"
+		case 3:
+			format = "Yay, %s got 3 more cherries!\n"
+		case 4:
+			format = "Hooray, %s got 4 more cherries!\n"
+		}
+
+		switch turn.Player.Color() {
+		case game.Blue:
+			renderer = styleBlue.Render
+		case game.Green:
+			renderer = styleGreen.Render
+		case game.Red:
+			renderer = styleRed.Render
+		case game.Yellow:
+			renderer = styleYellow.Render
+		}
+
+		output.WriteString(renderer(fmt.Sprintf(format, turn.Player.Name)))
+	}
+
+	return output.String()
+}
+
 func (m model) View() string {
 	leftSide := lipgloss.JoinVertical(lipgloss.Left,
 		playersPane.Render(m.playerList.View()),
 		helpPane.Render(lipgloss.JoinVertical(lipgloss.Center,
-			"Help",
+			helpTitle,
 			m.bindHelp.View(m.binds))),
 	)
 	var rightSide string
