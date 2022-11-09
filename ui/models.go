@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/bmoller/cherry-o/pkg/game"
+	"github.com/bmoller/cherry-o/game"
 )
 
 type keyMap struct {
