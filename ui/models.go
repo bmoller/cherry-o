@@ -11,47 +11,135 @@ import (
 	"github.com/bmoller/cherry-o/game"
 )
 
-type keyMap struct {
+// keys
+
+type mainKeyMap struct {
 	AddPlayer    key.Binding
-	Dismiss      key.Binding
 	Play         key.Binding
 	Quit         key.Binding
 	RemovePlayer key.Binding
 }
 
-func (k keyMap) ShortHelp() []key.Binding {
+func (k mainKeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{k.Quit}
 }
 
-func (k keyMap) FullHelp() [][]key.Binding {
+func (k mainKeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.AddPlayer, k.RemovePlayer, k.Play, k.Dismiss, k.Quit},
+		{k.AddPlayer, k.RemovePlayer, k.Play, k.Quit},
 	}
 }
 
-func newKeyMap() keyMap {
-	return keyMap{
-		AddPlayer: key.NewBinding(
-			key.WithKeys("a"),
-			key.WithHelp("a", "Add player"),
-		),
-		//Dismiss: key.NewBinding(
-		//	key.WithKeys("esc", "enter"),
-		//	key.WithHelp("esc/enter", "Dismiss error"),
-		//),
-		Play: key.NewBinding(
-			key.WithKeys("p"),
-			key.WithHelp("p", "Play game"),
-		),
-		Quit: key.NewBinding(
-			key.WithKeys("q", "ctrl+c"),
-			key.WithHelp("q", "Quit game"),
-		),
-		RemovePlayer: key.NewBinding(
-			key.WithKeys("r"),
-			key.WithHelp("r", "Remove player"),
-		),
+var mainKeyBinds = mainKeyMap{
+	AddPlayer: key.NewBinding(
+		key.WithHelp("a", "Add player"),
+		key.WithKeys("a"),
+	),
+	Play: key.NewBinding(
+		key.WithHelp("p", "Play game"),
+		key.WithKeys("p"),
+	),
+	Quit: key.NewBinding(
+		key.WithHelp("q", "Quit game"),
+		key.WithKeys("q", "ctrl+c"),
+	),
+	RemovePlayer: key.NewBinding(
+		key.WithHelp("r", "Remove player"),
+		key.WithKeys("r"),
+	),
+}
+
+type errorKeyMap struct {
+	Dismiss key.Binding
+}
+
+func (k errorKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Dismiss}
+}
+
+func (k errorKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Dismiss},
 	}
+}
+
+var errorKeyBinds = errorKeyMap{
+	Dismiss: key.NewBinding(
+		key.WithHelp("enter", "Dismiss"),
+		key.WithKeys("enter"),
+	),
+}
+
+type addPlayerKeyMap struct {
+	Cancel        key.Binding
+	SelectionDown key.Binding
+	SelectionUp   key.Binding
+	Submit        key.Binding
+}
+
+func (k addPlayerKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Cancel, k.Submit}
+}
+
+func (k addPlayerKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.SelectionUp, k.SelectionDown, k.Submit, k.Cancel},
+	}
+}
+
+var addPlayerKeyBinds = addPlayerKeyMap{
+	Cancel: key.NewBinding(
+		key.WithHelp("esc", "Cancel"),
+		key.WithKeys("esc"),
+	),
+	SelectionDown: key.NewBinding(
+		key.WithHelp("↓ / j", "Next color"),
+		key.WithKeys("down", "j"),
+	),
+	SelectionUp: key.NewBinding(
+		key.WithHelp("↑ / k", "Previous color"),
+		key.WithKeys("up", "k"),
+	),
+	Submit: key.NewBinding(
+		key.WithHelp("enter", "Submit"),
+		key.WithKeys("enter"),
+	),
+}
+
+type removePlayerKeyMap struct {
+	Cancel        key.Binding
+	SelectionDown key.Binding
+	SelectionUp   key.Binding
+	Submit        key.Binding
+}
+
+func (k removePlayerKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Submit}
+}
+
+func (k removePlayerKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.SelectionUp, k.SelectionDown, k.Submit, k.Cancel},
+	}
+}
+
+var removePlayerKeyBinds = removePlayerKeyMap{
+	Cancel: key.NewBinding(
+		key.WithHelp("esc", "Cancel"),
+		key.WithKeys("esc"),
+	),
+	SelectionDown: key.NewBinding(
+		key.WithHelp("↓ / j", "Next player"),
+		key.WithKeys("down", "j"),
+	),
+	SelectionUp: key.NewBinding(
+		key.WithHelp("↑ / k", "Previous player"),
+		key.WithKeys("up", "k"),
+	),
+	Submit: key.NewBinding(
+		key.WithHelp("enter", "Submit"),
+		key.WithKeys("enter"),
+	),
 }
 
 // Logic for color list

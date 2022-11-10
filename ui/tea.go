@@ -16,20 +16,19 @@ import (
 	"github.com/bmoller/cherry-o/game"
 )
 
-type state int
+type appState int
 
 const (
-	main state = iota
-	removePlayer
-	addPlayer
-	showError
+	mainState appState = iota
+	errorState
+	addPlayerState
+	removePlayerState
 )
 
 type model struct {
 	bindHelp     help.Model
-	binds        keyMap
 	colorList    list.Model
-	currentState state
+	currentState appState
 	err          error
 	game         game.Game
 	nameInput    textinput.Model
@@ -71,7 +70,6 @@ func New() tea.Model {
 
 	return model{
 		bindHelp:   helpModel,
-		binds:      newKeyMap(),
 		colorList:  colorList,
 		game:       game.Game{},
 		nameInput:  textinput.New(),
@@ -86,24 +84,24 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch m.currentState {
-	case showError:
-		return updateShowError(msg, m)
-	case addPlayer:
+	case errorState:
+		return updateError(msg, m)
+	case addPlayerState:
 		return updateAddPlayer(msg, m)
 	default:
 		return updateMain(msg, m)
 	}
 }
 
-func updateShowError(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+func updateError(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.binds.Dismiss):
+		case key.Matches(msg, errorKeyBinds.Dismiss):
 			m.err = nil
-			m.currentState = main
+			m.currentState = mainState
 		}
 	}
 
@@ -112,36 +110,34 @@ func updateShowError(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 
 func updateAddPlayer(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	var (
-		cmd  tea.Cmd
-		cmds []tea.Cmd
-		err  error
+		cmd tea.Cmd
+		err error
 	)
 
 	switch keyMsg, ok := msg.(tea.KeyMsg); {
-	case ok && keyMsg.Type == tea.KeyEnter:
+	case ok && key.Matches(keyMsg, addPlayerKeyBinds.Submit):
 		// all done; make the call to add a player
 		if m.game, err = m.game.AddPlayer(m.nameInput.Value(), m.colorList.SelectedItem().(game.Color)); err != nil {
-			m.currentState = showError
+			m.currentState = errorState
 			m.err = err
 		} else {
 			var players []list.Item
 			for _, player := range m.game.Players() {
 				players = append(players, player)
 			}
-			cmds = append(cmds, m.playerList.SetItems(players))
-			m.currentState = main
+			cmd = m.playerList.SetItems(players)
+			m.currentState = mainState
 		}
 		m.nameInput.Reset()
-	case ok && (keyMsg.Type == tea.KeyUp || keyMsg.Type == tea.KeyDown):
+	case ok && key.Matches(keyMsg, addPlayerKeyBinds.SelectionDown, addPlayerKeyBinds.SelectionUp):
 		// moving color selection up or down
 		m.colorList, cmd = m.colorList.Update(msg)
-		cmds = append(cmds, cmd)
+	default:
+		// send everything else to the name field
+		m.nameInput, cmd = m.nameInput.Update(msg)
 	}
-	// send everything else to the name field
-	m.nameInput, cmd = m.nameInput.Update(msg)
-	cmds = append(cmds, cmd)
 
-	return m, tea.Batch(cmds...)
+	return m, cmd
 }
 
 func updateMain(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
@@ -153,10 +149,10 @@ func updateMain(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.binds.AddPlayer):
+		case key.Matches(msg, mainKeyBinds.AddPlayer):
 			if m.game.PlayerCount() == game.MaxPlayers {
 				m.err = fmt.Errorf("only %d players can play at a time", game.MaxPlayers)
-				m.currentState = showError
+				m.currentState = errorState
 			} else {
 				var (
 					cmds      [2]tea.Cmd
@@ -171,34 +167,34 @@ func updateMain(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				cmds[1] = m.colorList.SetItems(colorList)
 				m.colorList.ResetSelected()
 				cmd = tea.Batch(cmds[:]...)
-				m.currentState = addPlayer
+				m.currentState = addPlayerState
 			}
-		case key.Matches(msg, m.binds.Play):
+		case key.Matches(msg, mainKeyBinds.Play):
 			if turns, winner, err := m.game.Play(); err != nil {
 				m.err = err
-				m.currentState = showError
+				m.currentState = errorState
 			} else {
 				m.turnView.SetContent(renderTurns(turns))
 				cmd = viewport.Sync(m.turnView)
 				m.winner = winner
 			}
-		case key.Matches(msg, m.binds.Quit):
+		case key.Matches(msg, mainKeyBinds.Quit):
 			cmd = tea.Quit
-		case key.Matches(msg, m.binds.RemovePlayer):
+		case key.Matches(msg, mainKeyBinds.RemovePlayer):
 			if m.game.PlayerCount() == 0 {
 				m.err = errors.New("no players to remove")
-				m.currentState = showError
+				m.currentState = errorState
 			} else {
 				if m.game, err = m.game.RemovePlayer(m.playerList.SelectedItem().(game.Player).Name); err != nil {
 					m.err = err
-					m.currentState = showError
+					m.currentState = errorState
 				} else {
 					var players []list.Item
 					for _, player := range m.game.Players() {
 						players = append(players, player)
 					}
 					cmd = m.playerList.SetItems(players)
-					m.currentState = main
+					m.currentState = mainState
 				}
 			}
 		}
@@ -251,21 +247,35 @@ func renderTurns(turns []game.Turn) string {
 }
 
 func (m model) View() string {
+	var (
+		helpContent string
+	)
+
+	switch m.currentState {
+	case errorState:
+		helpContent = m.bindHelp.View(errorKeyBinds)
+	case addPlayerState:
+		helpContent = m.bindHelp.View(addPlayerKeyBinds)
+	case removePlayerState:
+		helpContent = m.bindHelp.View(removePlayerKeyBinds)
+	default:
+		helpContent = m.bindHelp.View(mainKeyBinds)
+	}
+
 	leftSide := lipgloss.JoinVertical(lipgloss.Left,
 		playersPane.Render(m.playerList.View()),
 		helpPane.Render(lipgloss.JoinVertical(lipgloss.Center,
 			helpTitle,
-			m.bindHelp.View(m.binds))),
-	)
+			helpContent)))
 	var rightSide string
 	switch m.currentState {
-	case showError:
+	case errorState:
 		rightSide = lipgloss.Place(50, 25,
 			lipgloss.Center, lipgloss.Center,
 			styleErrorMsg.Render(m.err.Error()),
 			lipgloss.WithWhitespaceChars("-"),
 			lipgloss.WithWhitespaceForeground(yellow))
-	case addPlayer:
+	case addPlayerState:
 		rightSide = lipgloss.JoinVertical(lipgloss.Center,
 			"Add a Player",
 			m.nameInput.View(),
