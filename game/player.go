@@ -7,7 +7,8 @@ import (
 type Color int
 
 const (
-	Blue Color = iota
+	InvalidColor Color = iota
+	Blue
 	Green
 	Red
 	Yellow

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-var testPlayers = []map[string]Color{
+var playerTestValues = []map[string]Color{
 	{},
 	{
 		"Ezekiel": Blue,
@@ -48,22 +48,8 @@ func TestGamePlayerCountDirect(t *testing.T) {
 	}
 }
 
-func TestGamePlayerCountIndirect(t *testing.T) {
-	for expected, inputs := range testPlayers {
-		t.Run(fmt.Sprintf("%d players", expected), func(t *testing.T) {
-			g := Game{}
-			for name, color := range inputs {
-				g, _ = g.AddPlayer(name, color)
-			}
-			if actual := g.PlayerCount(); actual != expected {
-				t.Fatalf("expected %d but got %d", expected, actual)
-			}
-		})
-	}
-}
-
 func TestGamePlayersDirect(t *testing.T) {
-	for i, inputs := range testPlayers[1:] {
+	for i, inputs := range playerTestValues[1:] {
 		count := i + 1
 		t.Run(fmt.Sprintf("%d players", count), func(t *testing.T) {
 			g := Game{
@@ -91,23 +77,50 @@ func TestGamePlayersDirect(t *testing.T) {
 	}
 }
 
-func TestGamePlayersIndirect(t *testing.T) {
-	for i, inputs := range testPlayers[1:] {
-		count := i + 1
-		t.Run(fmt.Sprintf("%d players", count), func(t *testing.T) {
+func TestAvailableColors(t *testing.T) {
+	testCases := []map[Color]bool{
+		{
+			Blue:   true,
+			Green:  true,
+			Red:    true,
+			Yellow: true,
+		},
+		{
+			Blue:   false,
+			Green:  true,
+			Red:    true,
+			Yellow: true,
+		},
+		{
+			Blue:   true,
+			Green:  true,
+			Red:    false,
+			Yellow: false,
+		},
+		{
+			Blue:   false,
+			Green:  false,
+			Red:    true,
+			Yellow: false,
+		},
+		{
+			Blue:   false,
+			Green:  false,
+			Red:    false,
+			Yellow: false,
+		},
+	}
+
+	for i, inputs := range playerTestValues {
+		t.Run(fmt.Sprintf("%d players", i), func(t *testing.T) {
 			g := Game{}
 			for name, color := range inputs {
 				g, _ = g.AddPlayer(name, color)
 			}
-			players := g.Players()
-			expected, actual := len(inputs), len(players)
-			if actual != expected {
-				t.Fatalf("expected %d players but got %d players", expected, actual)
-			}
-			for _, player := range players {
-				expected, actual := inputs[player.Name], player.color
-				if actual != expected {
-					t.Fatalf("expected player %s to have color %s but got color %s", player.Name, expected, actual)
+			colors := g.AvailableColors()
+			for color, availability := range testCases[i] {
+				if expected, actual := availability, colors[color]; actual != expected {
+					t.Fatalf("wrong availability for color %s; expected %t but got %t", color, expected, actual)
 				}
 			}
 		})
@@ -115,17 +128,41 @@ func TestGamePlayersIndirect(t *testing.T) {
 }
 
 func TestGameAddPlayerValid(t *testing.T) {
-	for i, inputs := range testPlayers[1:] {
+	for i, inputs := range playerTestValues[1:] {
 		count := i + 1
 		t.Run(fmt.Sprintf("%d players", count), func(t *testing.T) {
 			var (
 				err error
 				g   = Game{}
+				j   int
 			)
 
 			for name, color := range inputs {
 				if g, err = g.AddPlayer(name, color); err != nil {
 					t.Fatalf("failed to add player: %s", err)
+				}
+				j++
+				if g.playerCount != j {
+					t.Fatalf("expected player count %d but got %d", j, g.playerCount)
+				}
+			}
+
+			// check for player existence both ways
+			players := g.Players()
+			for playerIn := range inputs {
+				var found bool
+				for _, playerOut := range players {
+					if playerOut.Name == playerIn {
+						found = true
+					}
+				}
+				if !found {
+					t.Fatalf("player %s is missing", playerIn)
+				}
+			}
+			for _, playerOut := range players {
+				if inputs[playerOut.Name] == InvalidColor {
+					t.Fatalf("player %s should not be in game", playerOut.Name)
 				}
 			}
 		})
@@ -140,7 +177,7 @@ func TestGameAddPlayerTooManyPlayers(t *testing.T) {
 		playerName  = "Marilyn"
 	)
 
-	for name, color := range testPlayers[4] {
+	for name, color := range playerTestValues[4] {
 		if g, err = g.AddPlayer(name, color); err != nil {
 			t.Fatalf("failed to add player %s with color %s", name, color)
 		}
@@ -198,7 +235,7 @@ func TestGameAddPlayerCollision(t *testing.T) {
 }
 
 func TestGameRemovePlayerValid(t *testing.T) {
-	for i, inputs := range testPlayers[1:] {
+	for i, inputs := range playerTestValues[1:] {
 		count := i + 1
 		t.Run(fmt.Sprintf("%d players", count), func(t *testing.T) {
 			var (
@@ -259,7 +296,7 @@ func TestGameRemovePlayerInvalidNames(t *testing.T) {
 		},
 	}
 
-	for i, inputs := range testPlayers[1:] {
+	for i, inputs := range playerTestValues[1:] {
 		t.Run(fmt.Sprintf("%d players", i+1), func(t *testing.T) {
 			var (
 				err error
@@ -273,6 +310,110 @@ func TestGameRemovePlayerInvalidNames(t *testing.T) {
 				if g, err = g.RemovePlayer(name); err == nil {
 					t.Fatalf("shouldn't be able to remove non-existant player %s", name)
 				}
+			}
+		})
+	}
+}
+
+func TestTakeTurn(t *testing.T) {
+	var (
+		testCases = map[string]Color{
+			"Larisa Peyton":      Blue,
+			"Ellsworth Delacruz": Red,
+			"Merlyn Schulze":     Green,
+			"Man Beckman":        Yellow,
+			"Nguyet Samuels":     Green,
+			"Emmitt Venable":     Red,
+			"Sol Hite":           Green,
+			"Ginny Allan":        Yellow,
+			"Althea Cottrell":    Blue,
+			"Florine Ragan":      Green,
+			"Mckinley Bratcher":  Blue,
+			"Hassan Cave":        Red,
+			"Stefan Lind":        Yellow,
+			"Faustino Martz":     Green,
+			"Zenia Hutcheson":    Blue,
+			"Denyse Roderick":    Yellow,
+			"Anisha Downey":      Green,
+			"Eufemia Merrick":    Blue,
+			"Josue Goins":        Red,
+			"Julian Groce":       Yellow,
+			"Clarine Berlin":     Green,
+			"Jong Carrillo":      Blue,
+			"Jose Wild":          Red,
+			"Debora Packard":     Yellow,
+			"Taisha Locklear":    Green,
+		}
+		validSpins = make(map[int]bool)
+	)
+
+	for _, val := range spinnerValues {
+		validSpins[val] = true
+	}
+
+	for name, color := range testCases {
+		t.Run(fmt.Sprintf("%s %s", name, color), func(t *testing.T) {
+			var (
+				err    error
+				player = Player{
+					color: color,
+					Name:  name,
+				}
+				turn Turn
+			)
+
+			switch turn, player, err = takeTurn(player); {
+			case err != nil:
+				t.Fatal("failed to generate a random number; local entropy is likely low")
+			case !validSpins[turn.Spin]:
+				t.Fatalf("turn has an invalid spin value: %d", turn.Spin)
+			case turn.Player.Name != player.Name:
+				t.Fatalf("player name should not change from %s to %s", player.Name, turn.Player.Name)
+			case turn.Spin >= 0 && turn.Player.cherries != turn.Spin:
+				t.Fatalf("expected %d cherries after turn but got %d", turn.Spin, turn.Player.cherries)
+			case turn.Spin < 0 && turn.Player.cherries != 0:
+				t.Fatalf("player should not have less than 0 cherries; got %d after spin %d", turn.Player.cherries, turn.Spin)
+			}
+		})
+	}
+}
+
+func TestGamePlayNoPlayers(t *testing.T) {
+	g := Game{}
+	if _, _, err := g.Play(); err == nil {
+		t.Fatal("shouldn't be able to play without any players")
+	}
+}
+
+func TestGamePlayValid(t *testing.T) {
+	for _, inputs := range playerTestValues[1:] {
+		t.Run(fmt.Sprintf("%d players", len(inputs)), func(t *testing.T) {
+			var (
+				err    error
+				g      = Game{}
+				turns  []Turn
+				winner Player
+			)
+
+			for name, color := range inputs {
+				g, err = g.AddPlayer(name, color)
+				if err != nil {
+					t.Fatalf("failed to add player %s with color %s", name, color)
+				}
+			}
+			if g.playerCount != len(inputs) {
+				t.Fatalf("expected player count %d but got %d", len(inputs), g.playerCount)
+			}
+
+			switch turns, winner, err = g.Play(); {
+			case turns == nil:
+				t.Fatal("turn list is empty")
+			case len(turns) < 2*g.playerCount+1:
+				t.Fatalf("too few turns to have a winner; got %d turns", len(turns))
+			case winner.cherries != 10:
+				t.Fatalf("expected winner to have 10 cherries but got %d", winner.cherries)
+			case err != nil:
+				t.Fatalf("unexpected error: %s", err)
 			}
 		})
 	}
