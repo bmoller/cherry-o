@@ -48,12 +48,6 @@ var (
 			Margin(1, 0).
 			Width(50)
 
-	styleErrorMsg = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder(), true).
-			BorderForeground(red).
-			Foreground(red).
-			Padding(1, 2)
-
 	styleBlue = lipgloss.NewStyle().
 			Foreground(blue)
 
