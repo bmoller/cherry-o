@@ -1,6 +1,9 @@
 package ui
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -20,6 +23,8 @@ Each appState needs to have a function for update and view operations, correspon
 type appState int
 
 const (
+	// blockChar is a reference to a filled-in character space useful for drawing, or displaying colors.
+	blockChar string = "█"
 	// mainState represents the default view of the application; from here the user can move to any of the other appStates.
 	// Defined first so that it acts as default and a sane zero value.
 	mainState appState = iota
@@ -76,8 +81,6 @@ type model struct {
 	game game.Game
 	// Used to query the name when adding a new player.
 	nameInput textinput.Model
-	// Displays the current players in the model's game.Game.
-	playerList list.Model
 	// Tracks the current state of the application, which determines how to update and display.
 	state appState
 	// Presents the list of turns from the most recent round of play.
@@ -107,30 +110,15 @@ func New() tea.Model {
 	helpModel.ShowAll = true
 	helpModel.Width = 36
 
-	playerList := list.New(nil, playersDelegate{}, 30, 7)
-	playerList.Title = "Players"
-	for _, function := range []func(bool){
-		playerList.SetFilteringEnabled,
-		playerList.SetShowFilter,
-		playerList.SetShowHelp,
-		playerList.SetShowPagination,
-		playerList.SetShowStatusBar,
-	} {
-		function(false)
-	}
-	playerList.SetStatusBarItemName("player", "players")
-	playerList.SetWidth(26)
-
 	viewportModel := viewport.New(74, 50)
 
 	return model{
-		bindHelp:   helpModel,
-		colorList:  colorList,
-		game:       game.Game{},
-		nameInput:  textinput.New(),
-		playerList: playerList,
-		state:      mainState,
-		turnView:   viewportModel,
+		bindHelp:  helpModel,
+		colorList: colorList,
+		game:      game.Game{},
+		nameInput: textinput.New(),
+		state:     mainState,
+		turnView:  viewportModel,
 	}
 }
 
@@ -148,6 +136,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Break glass functionality
 	if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.Type == tea.KeyCtrlC {
 		return m, tea.Quit
+	}
+
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		newHeight := sizeMsg.Height - 15
+		mainPane = mainPane.Copy().Height(newHeight)
+		m.turnView.Height = newHeight
 	}
 
 	return m.state.update(msg, m)
@@ -169,6 +163,47 @@ func renderHelpContent(m model, keyMap help.KeyMap) string {
 		helpTitle,
 		m.bindHelp.View(keyMap),
 	)
+}
+
+/*
+ */
+func renderPlayers(m model, players []game.Player, selected int) string {
+	var rows []string
+
+	for _, player := range players {
+		var (
+			playerColor  string
+			playerWinner string
+		)
+
+		switch player.Color() {
+		case game.Blue:
+			playerColor = styleBlue.Render(blockChar)
+		case game.Green:
+			playerColor = styleGreen.Render(blockChar)
+		case game.Red:
+			playerColor = styleRed.Render(blockChar)
+		case game.Yellow:
+			playerColor = styleYellow.Render(blockChar)
+		}
+
+		if m.winner.Name == player.Name {
+			playerWinner = "👑"
+		} else {
+			playerWinner = "  "
+		}
+
+		rows = append(rows, fmt.Sprintf(
+			"%s %s%s%s",
+			playerColor,
+			player.Name,
+			strings.Repeat(" ", 26-4-len(player.Name)),
+			playerWinner))
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Center,
+		"Players",
+		strings.Join(rows, "\n"))
 }
 
 /*

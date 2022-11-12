@@ -106,11 +106,6 @@ func updateAddPlayerState(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.state = errorState
 				m.err = err
 			} else {
-				var players []list.Item
-				for _, player := range m.game.Players() {
-					players = append(players, player)
-				}
-				cmd = m.playerList.SetItems(players)
 				m.state = mainState
 			}
 			m.nameInput.Reset()
@@ -134,5 +129,5 @@ func viewAddPlayerState(m model) string {
 		m.colorList.View(),
 	)
 
-	return assembleView(m.playerList.View(), renderHelpContent(m, addPlayerKeyBinds), addPlayerContent)
+	return assembleView(renderPlayers(m, m.game.Players(), -1), renderHelpContent(m, addPlayerKeyBinds), addPlayerContent)
 }

@@ -57,5 +57,5 @@ func viewErrorState(m model) string {
 		lipgloss.WithWhitespaceChars("-"),
 		lipgloss.WithWhitespaceForeground(yellow))
 
-	return assembleView(m.playerList.View(), renderHelpContent(m, errorKeyBinds), errorContent)
+	return assembleView(renderPlayers(m, m.game.Players(), -1), renderHelpContent(m, errorKeyBinds), errorContent)
 }

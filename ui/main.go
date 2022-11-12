@@ -3,7 +3,6 @@ package ui
 import (
 	"errors"
 	"fmt"
-	"io"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -59,45 +58,6 @@ var mainKeyBinds = mainKeyMap{
 	),
 }
 
-type playersDelegate struct{}
-
-func (p playersDelegate) Height() int {
-	return 1
-}
-
-func (p playersDelegate) Spacing() int {
-	return 0
-}
-
-func (p playersDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd {
-	return nil
-}
-
-func (p playersDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
-	player, ok := item.(game.Player)
-	if !ok {
-		return
-	}
-
-	var renderFunc func(string) string
-	switch player.Color() {
-	case game.Blue:
-		renderFunc = styleBlue.Render
-	case game.Green:
-		renderFunc = styleGreen.Render
-	case game.Red:
-		renderFunc = styleRed.Render
-	case game.Yellow:
-		renderFunc = styleYellow.Render
-	}
-	styledName := renderFunc(player.Name)
-	if index == m.Index() {
-		fmt.Fprint(w, " 👑 "+styledName)
-	} else {
-		fmt.Fprint(w, "   "+styledName)
-	}
-}
-
 func updateMainState(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	var (
 		cmd tea.Cmd
@@ -142,15 +102,10 @@ func updateMainState(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.err = errors.New("no players to remove")
 				m.state = errorState
 			} else {
-				if m.game, err = m.game.RemovePlayer(m.playerList.SelectedItem().(game.Player).Name); err != nil {
+				if m.game, err = m.game.RemovePlayer(m.winner.Name); err != nil {
 					m.err = err
 					m.state = errorState
 				} else {
-					var players []list.Item
-					for _, player := range m.game.Players() {
-						players = append(players, player)
-					}
-					cmd = m.playerList.SetItems(players)
 					m.state = mainState
 				}
 			}
@@ -209,5 +164,5 @@ func renderTurns(turns []game.Turn) string {
 }
 
 func viewMainState(m model) string {
-	return assembleView(m.playerList.View(), renderHelpContent(m, mainKeyBinds), m.turnView.View())
+	return assembleView(renderPlayers(m, m.game.Players(), -1), renderHelpContent(m, mainKeyBinds), m.turnView.View())
 }
