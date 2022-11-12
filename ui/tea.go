@@ -1,12 +1,9 @@
 package ui
 
 import (
-	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -16,27 +13,82 @@ import (
 	"github.com/bmoller/cherry-o/game"
 )
 
+/*
+appState is used to track what the user is currently doing and what to display.
+
+If/when new states and functionality are added, the state should be added here with references to its handler functions.
+Each appState needs to have a function for update and view operations, corresponding to the Elm Architecture concepts.
+*/
 type appState int
 
 const (
+	// mainState represents the default view of the application; from here the user can move to any of the other appStates.
+	// Defined first so that it acts as default and a sane zero value.
 	mainState appState = iota
+	// errorState indicates that an error has occurred and displays it to the user.
 	errorState
+	// addPlayerState shows components used to add a new player to the game.
 	addPlayerState
+	// removePlayerState handles removal of an existing player from the game, assuming there are any.
 	removePlayerState
 )
 
-type model struct {
-	bindHelp     help.Model
-	colorList    list.Model
-	currentState appState
-	err          error
-	game         game.Game
-	nameInput    textinput.Model
-	playerList   list.Model
-	turnView     viewport.Model
-	winner       game.Player
+/*
+update calls the appState's function for handling event messages.
+Because the function receives a state and not the model itself, m must be passed along with msg.
+*/
+func (s appState) update(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+	switch s {
+	case errorState:
+		return updateErrorState(msg, m)
+	case addPlayerState:
+		return updateAddPlayerState(msg, m)
+	case removePlayerState:
+		return updateRemovePlayerState(msg, m)
+	default:
+		return updateMainState(msg, m)
+	}
 }
 
+/*
+view calls the appState's function for rendering the current state of the application.
+As with update, the model must be passed in m so that components are accessible.
+*/
+func (s appState) view(m model) string {
+	switch s {
+	case errorState:
+		return viewErrorState(m)
+	case addPlayerState:
+		return viewAddPlayerState(m)
+	case removePlayerState:
+		return viewRemovePlayerState(m)
+	default:
+		return viewMainState(m)
+	}
+}
+
+type model struct {
+	// Used to display the current state's keybinds.
+	bindHelp help.Model
+	// Presents available colors to the user when adding a new player.
+	colorList list.Model
+	// The current error resulting in an errorState, if any.
+	err error
+	// An embedded game simulation; its outputs are presented to the user via the model.
+	game game.Game
+	// Used to query the name when adding a new player.
+	nameInput textinput.Model
+	// Tracks the current state of the application, which determines how to update and display.
+	state appState
+	// Presents the list of turns from the most recent round of play.
+	turnView viewport.Model
+	// Tracks the winner from the most recent round of play.
+	winner game.Player
+}
+
+/*
+New creates and returns a model with defaults for a new execution.
+*/
 func New() tea.Model {
 	colorList := list.New(nil, colorsDelegate{}, 10, 6)
 	colorList.Title = "Select a Color"
@@ -50,241 +102,136 @@ func New() tea.Model {
 		function(false)
 	}
 	colorList.SetStatusBarItemName("color", "colors")
+	colorList.SetWidth(26 - 3) // content width after padding, minus prefix
 
 	helpModel := help.New()
 	helpModel.ShowAll = true
-	helpModel.Width = 30
+	helpModel.Width = 36
 
-	playerList := list.New(nil, playersDelegate{}, 30, 7)
-	playerList.Title = "Players"
-	for _, function := range []func(bool){
-		playerList.SetFilteringEnabled,
-		playerList.SetShowFilter,
-		playerList.SetShowHelp,
-		playerList.SetShowPagination,
-		playerList.SetShowStatusBar,
-	} {
-		function(false)
-	}
-	playerList.SetStatusBarItemName("player", "players")
+	nameInput := textinput.New()
+	nameInput.Width = 26 - 3 // content width after padding, minus prefix
+
+	viewportModel := viewport.New(74, 50)
+	viewportModel.Style = viewportModel.Style.Copy().Padding(1, 2)
 
 	return model{
-		bindHelp:   helpModel,
-		colorList:  colorList,
-		game:       game.Game{},
-		nameInput:  textinput.New(),
-		playerList: playerList,
-		turnView:   viewport.New(50, 25),
+		bindHelp:  helpModel,
+		colorList: colorList,
+		game:      game.Game{},
+		nameInput: nameInput,
+		state:     mainState,
+		turnView:  viewportModel,
 	}
 }
 
+/*
+Init meets the requirements of the tea.Model interface but is currently a no-op.
+*/
 func (m model) Init() tea.Cmd {
 	return nil
 }
 
+/*
+Update passes event messages to the current state per requirements of the tea.Model interface.
+*/
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch m.currentState {
-	case errorState:
-		return updateError(msg, m)
-	case addPlayerState:
-		return updateAddPlayer(msg, m)
-	default:
-		return updateMain(msg, m)
-	}
-}
-
-func updateError(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, errorKeyBinds.Dismiss):
-			m.err = nil
-			m.currentState = mainState
-		}
+	// Break glass functionality
+	if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.Type == tea.KeyCtrlC {
+		return m, tea.Quit
 	}
 
-	return m, cmd
-}
-
-func updateAddPlayer(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
-	var (
-		cmd tea.Cmd
-		err error
-	)
-
-	switch keyMsg, ok := msg.(tea.KeyMsg); {
-	case ok && key.Matches(keyMsg, addPlayerKeyBinds.Submit):
-		// all done; make the call to add a player
-		if m.game, err = m.game.AddPlayer(m.nameInput.Value(), m.colorList.SelectedItem().(game.Color)); err != nil {
-			m.currentState = errorState
-			m.err = err
-		} else {
-			var players []list.Item
-			for _, player := range m.game.Players() {
-				players = append(players, player)
-			}
-			cmd = m.playerList.SetItems(players)
-			m.currentState = mainState
-		}
-		m.nameInput.Reset()
-	case ok && key.Matches(keyMsg, addPlayerKeyBinds.SelectionDown, addPlayerKeyBinds.SelectionUp):
-		// moving color selection up or down
-		m.colorList, cmd = m.colorList.Update(msg)
-	default:
-		// send everything else to the name field
-		m.nameInput, cmd = m.nameInput.Update(msg)
+	if sizeMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		newHeight := sizeMsg.Height - 15
+		mainPane = mainPane.Copy().Height(newHeight)
+		m.turnView.Height = newHeight
 	}
 
-	return m, cmd
+	return m.state.update(msg, m)
 }
 
-func updateMain(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
-	var (
-		cmd tea.Cmd
-		err error
-	)
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, mainKeyBinds.AddPlayer):
-			if m.game.PlayerCount() == game.MaxPlayers {
-				m.err = fmt.Errorf("only %d players can play at a time", game.MaxPlayers)
-				m.currentState = errorState
-			} else {
-				var (
-					cmds      [2]tea.Cmd
-					colorList []list.Item
-				)
-				for color, available := range m.game.AvailableColors() {
-					if available {
-						colorList = append(colorList, color)
-					}
-				}
-				cmds[0] = m.nameInput.Focus()
-				cmds[1] = m.colorList.SetItems(colorList)
-				m.colorList.ResetSelected()
-				cmd = tea.Batch(cmds[:]...)
-				m.currentState = addPlayerState
-			}
-		case key.Matches(msg, mainKeyBinds.Play):
-			if turns, winner, err := m.game.Play(); err != nil {
-				m.err = err
-				m.currentState = errorState
-			} else {
-				m.turnView.SetContent(renderTurns(turns))
-				cmd = viewport.Sync(m.turnView)
-				m.winner = winner
-			}
-		case key.Matches(msg, mainKeyBinds.Quit):
-			cmd = tea.Quit
-		case key.Matches(msg, mainKeyBinds.RemovePlayer):
-			if m.game.PlayerCount() == 0 {
-				m.err = errors.New("no players to remove")
-				m.currentState = errorState
-			} else {
-				if m.game, err = m.game.RemovePlayer(m.playerList.SelectedItem().(game.Player).Name); err != nil {
-					m.err = err
-					m.currentState = errorState
-				} else {
-					var players []list.Item
-					for _, player := range m.game.Players() {
-						players = append(players, player)
-					}
-					cmd = m.playerList.SetItems(players)
-					m.currentState = mainState
-				}
-			}
-		}
-	default:
-		m.turnView, cmd = m.turnView.Update(msg)
-	}
-
-	return m, cmd
-}
-
-func renderTurns(turns []game.Turn) string {
-	// spinnerValues = [7]int{1, 2, 3, 4, -2, -2, -10}
-	var (
-		format   string
-		output   strings.Builder
-		renderer func(string) string
-	)
-
-	for _, turn := range turns {
-		switch turn.Spin {
-		case -10:
-			format = "Oh no! %s lost 10 cherries!\n"
-		case -2:
-			format = "Uh-oh, %s lost 2 cherries.\n"
-		case 1:
-			format = "%s got another cherry.\n"
-		case 2:
-			format = "Hey, %s got 2 more cherries!\n"
-		case 3:
-			format = "Yay, %s got 3 more cherries!\n"
-		case 4:
-			format = "Hooray, %s got 4 more cherries!\n"
-		}
-
-		switch turn.Player.Color() {
-		case game.Blue:
-			renderer = styleBlue.Render
-		case game.Green:
-			renderer = styleGreen.Render
-		case game.Red:
-			renderer = styleRed.Render
-		case game.Yellow:
-			renderer = styleYellow.Render
-		}
-
-		output.WriteString(renderer(fmt.Sprintf(format, turn.Player.Name)))
-	}
-
-	return output.String()
-}
-
+/*
+View renders the current state per requirements of the tea.Model interface.
+*/
 func (m model) View() string {
+	return m.state.view(m)
+}
+
+/*
+renderHelpContent renders keyMap's view in the help view component of m.
+*/
+func renderHelpContent(m model, keyMap help.KeyMap) string {
+	return lipgloss.JoinVertical(
+		lipgloss.Center,
+		helpTitle,
+		m.bindHelp.View(keyMap),
+	)
+}
+
+/*
+renderPlayers takes players and renders it for proper display.
+If m has a winner set that winner will be marked as such in the output.
+Additionally, if selected is a valid int from the range of players, the corresponding player will be highlighted.
+*/
+func renderPlayers(m model, selected int) string {
 	var (
-		helpContent string
+		players = m.game.Players()
+		rows    []string
 	)
 
-	switch m.currentState {
-	case errorState:
-		helpContent = m.bindHelp.View(errorKeyBinds)
-	case addPlayerState:
-		helpContent = m.bindHelp.View(addPlayerKeyBinds)
-	case removePlayerState:
-		helpContent = m.bindHelp.View(removePlayerKeyBinds)
-	default:
-		helpContent = m.bindHelp.View(mainKeyBinds)
+	for i := 0; i < len(players); i++ {
+		var (
+			name        string
+			playerColor lipgloss.Style
+			prefix      string
+		)
+
+		switch players[i].Color() {
+		case game.Blue:
+			playerColor = styleBlue
+		case game.Green:
+			playerColor = styleGreen
+		case game.Red:
+			playerColor = styleRed
+		case game.Yellow:
+			playerColor = styleYellow
+		}
+
+		if len(players[i].Name) <= (26 - 3) { // content width after padding, minus the prefix
+			name = players[i].Name
+		} else {
+			name = players[i].Name[:26-5] + "…" // leave two spaces for potential double-width rendering of ellipsis
+		}
+
+		if i == selected {
+			prefix = " > "
+			playerColor = playerColor.Copy().Background(violet)
+		} else if m.winner.Name == players[i].Name {
+			prefix = "👑 "
+		} else {
+			prefix = "   "
+		}
+
+		rows = append(rows, prefix+playerColor.Render(name))
 	}
 
-	leftSide := lipgloss.JoinVertical(lipgloss.Left,
-		playersPane.Render(m.playerList.View()),
-		helpPane.Render(lipgloss.JoinVertical(lipgloss.Center,
-			helpTitle,
-			helpContent)))
-	var rightSide string
-	switch m.currentState {
-	case errorState:
-		rightSide = lipgloss.Place(50, 25,
-			lipgloss.Center, lipgloss.Center,
-			styleErrorMsg.Render(m.err.Error()),
-			lipgloss.WithWhitespaceChars("-"),
-			lipgloss.WithWhitespaceForeground(yellow))
-	case addPlayerState:
-		rightSide = lipgloss.JoinVertical(lipgloss.Center,
-			"Add a Player",
-			m.nameInput.View(),
-			m.colorList.View())
-	default:
-		rightSide = m.turnView.View()
-	}
+	return lipgloss.JoinVertical(lipgloss.Left,
+		playersTitle,
+		strings.Join(rows, "\n"))
+}
 
-	return lipgloss.JoinHorizontal(lipgloss.Top,
-		leftSide, rightPane.Render(rightSide),
+/*
+assembleView puts the content pieces together according to the designed layout.
+The playersContent, helpContent, and mainContent will each be placed in their appropriate locations in the view.
+appStates simply need to determine what they want placed in each pane and pass the content to this function.
+*/
+func assembleView(playersContent string, helpContent string, mainContent string) string {
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		mainPane.Render(mainContent),
+		lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			playersPane.Render(playersContent),
+			helpPane.Render(helpContent),
+		),
 	)
 }

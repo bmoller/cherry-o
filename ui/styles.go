@@ -4,8 +4,18 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+/*
+This file should only be used for common styles; state-specific styles belong in their respective files.
+*/
+
+const (
+	defaultMainHeight int = 50
+	width             int = 80
+)
+
 var (
 	// Color values
+
 	blue = lipgloss.Color("#268bd2")
 	//lint:ignore U1000 defining full color scheme
 	cyan    = lipgloss.Color("#2aa198")
@@ -18,42 +28,6 @@ var (
 	violet = lipgloss.Color("#6c71c4")
 	yellow = lipgloss.Color("#b58900")
 
-	// Top-level UI components
-
-	helpPane = lipgloss.NewStyle().
-			AlignHorizontal(lipgloss.Center).
-			Border(lipgloss.NormalBorder(), true).
-			BorderForeground(green).
-			Height(8).
-			Margin(0, 2).
-			Width(30)
-
-	helpTitle = lipgloss.NewStyle().
-			Margin(1, 0).
-			Underline(true).Render("Help")
-
-	playersPane = lipgloss.NewStyle().
-			AlignHorizontal(lipgloss.Center).
-			Border(lipgloss.RoundedBorder(), true).
-			BorderForeground(magenta).
-			Height(8).
-			Margin(1, 2).
-			Padding(1, 2).
-			Width(30)
-
-	rightPane = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder(), true).
-			BorderForeground(magenta).
-			Height(25).
-			Margin(1, 0).
-			Width(50)
-
-	styleErrorMsg = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder(), true).
-			BorderForeground(red).
-			Foreground(red).
-			Padding(1, 2)
-
 	styleBlue = lipgloss.NewStyle().
 			Foreground(blue)
 
@@ -65,4 +39,43 @@ var (
 
 	styleYellow = lipgloss.NewStyle().
 			Foreground(yellow)
+
+	// top-level UI components
+
+	// Large, central pane for displaying the main content of the current state, such as an error or turn list.
+	mainPane = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder(), true).
+			BorderForeground(magenta).
+			Height(defaultMainHeight).
+			Margin(1, 2).
+			Width(width - 6) // margin on either side, plus border on either side
+
+	// Style for the bottom-left panel of the display, intended to be used to display the list of current players.
+	playersPane = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder(), true).
+			BorderForeground(magenta).
+			Height(8).
+			Margin(0, 2).
+			Padding(1, 2).
+			Width(30)
+
+	// Style for the bottom-right panel of the display, intended to be used for displaying keybinds.
+	helpPane = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder(), true).
+			BorderForeground(green).
+			Height(8).
+			Padding(1, 2).
+			Width(40)
+
+	// common components
+
+	helpTitle = lipgloss.NewStyle().
+			Margin(0, 16, 1).
+			Underline(true).Render("Help")
+
+	playersTitle = lipgloss.NewStyle().
+			Border(lipgloss.ThickBorder(), false, false, true).
+			BorderForeground(magenta).
+			MarginLeft(9).
+			MarginRight(10).Render("Players")
 )
