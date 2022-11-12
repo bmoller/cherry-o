@@ -102,10 +102,14 @@ func New() tea.Model {
 		function(false)
 	}
 	colorList.SetStatusBarItemName("color", "colors")
+	colorList.SetWidth(26 - 3) // content width after padding, minus prefix
 
 	helpModel := help.New()
 	helpModel.ShowAll = true
 	helpModel.Width = 36
+
+	nameInput := textinput.New()
+	nameInput.Width = 26 - 3 // content width after padding, minus prefix
 
 	viewportModel := viewport.New(74, 50)
 	viewportModel.Style = viewportModel.Style.Copy().Padding(1, 2)
@@ -114,7 +118,7 @@ func New() tea.Model {
 		bindHelp:  helpModel,
 		colorList: colorList,
 		game:      game.Game{},
-		nameInput: textinput.New(),
+		nameInput: nameInput,
 		state:     mainState,
 		turnView:  viewportModel,
 	}

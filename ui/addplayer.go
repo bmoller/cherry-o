@@ -121,13 +121,29 @@ func updateAddPlayerState(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+var (
+	addPlayerTitle = lipgloss.NewStyle().
+			Border(lipgloss.ThickBorder(), false, false, true).
+			BorderForeground(yellow).Render("Add Player")
+	styleAddPlayer = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder(), true).
+			Padding(1, 2)
+)
+
 func viewAddPlayerState(m model) string {
 	addPlayerContent := lipgloss.JoinVertical(
 		lipgloss.Center,
-		"AddPlayer",
+		addPlayerTitle,
 		m.nameInput.View(),
+		"",
 		m.colorList.View(),
 	)
 
-	return assembleView(renderPlayers(m, -1), renderHelpContent(m, addPlayerKeyBinds), addPlayerContent)
+	addPlayerPlacement := lipgloss.Place(mainPane.GetWidth(), mainPane.GetHeight(),
+		lipgloss.Center, lipgloss.Center,
+		styleAddPlayer.Render(addPlayerContent),
+		lipgloss.WithWhitespaceChars("-"),
+		lipgloss.WithWhitespaceForeground(yellow))
+
+	return assembleView(renderPlayers(m, -1), renderHelpContent(m, addPlayerKeyBinds), addPlayerPlacement)
 }

@@ -42,13 +42,11 @@ func updateErrorState(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-var (
-	styleErrorMsg = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder(), true).
-		BorderForeground(red).
-		Foreground(red).
-		Padding(1, 2)
-)
+var styleErrorMsg = lipgloss.NewStyle().
+	Border(lipgloss.RoundedBorder(), true).
+	BorderForeground(red).
+	Foreground(red).
+	Padding(1, 2)
 
 func viewErrorState(m model) string {
 	errorContent := lipgloss.Place(mainPane.GetWidth(), mainPane.GetHeight(),
