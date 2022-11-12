@@ -17,6 +17,16 @@ var errorKeyBinds = errorKeyMap{
 	),
 }
 
+func (k errorKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Dismiss}
+}
+
+func (k errorKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.Dismiss},
+	}
+}
+
 func updateErrorState(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
@@ -25,7 +35,7 @@ func updateErrorState(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, errorKeyBinds.Dismiss):
 			m.err = nil
-			m.currentState = mainState
+			m.state = mainState
 		}
 	}
 
@@ -41,5 +51,11 @@ var (
 )
 
 func viewErrorState(m model) string {
-	return ""
+	errorContent := lipgloss.Place(50, 25,
+		lipgloss.Center, lipgloss.Center,
+		styleErrorMsg.Render(m.err.Error()),
+		lipgloss.WithWhitespaceChars("-"),
+		lipgloss.WithWhitespaceForeground(yellow))
+
+	return assembleView(m.playerList.View(), renderHelpContent(m, errorKeyBinds), errorContent)
 }

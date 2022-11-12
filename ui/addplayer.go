@@ -4,11 +4,50 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/bmoller/cherry-o/game"
 )
+
+type addPlayerKeyMap struct {
+	Cancel        key.Binding
+	NextColor     key.Binding
+	PreviousColor key.Binding
+	Submit        key.Binding
+}
+
+func (k addPlayerKeyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Cancel, k.Submit}
+}
+
+func (k addPlayerKeyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{k.PreviousColor, k.NextColor},
+		{k.Submit, k.Cancel},
+	}
+}
+
+var addPlayerKeyBinds = addPlayerKeyMap{
+	Cancel: key.NewBinding(
+		key.WithHelp("esc", "Cancel"),
+		key.WithKeys("esc"),
+	),
+	NextColor: key.NewBinding(
+		key.WithHelp("↓", "Next color"),
+		key.WithKeys("down"),
+	),
+	PreviousColor: key.NewBinding(
+		key.WithHelp("↑", "Previous color"),
+		key.WithKeys("up"),
+	),
+	Submit: key.NewBinding(
+		key.WithHelp("enter", "Submit"),
+		key.WithKeys("enter"),
+	),
+}
 
 type colorsDelegate struct{}
 
@@ -51,38 +90,49 @@ func (c colorsDelegate) Render(w io.Writer, m list.Model, index int, item list.I
 
 func updateAddPlayerState(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 	var (
-		cmd  tea.Cmd
-		cmds []tea.Cmd
-		err  error
+		cmd tea.Cmd
+		err error
 	)
 
-	switch keyMsg, ok := msg.(tea.KeyMsg); {
-	case ok && keyMsg.Type == tea.KeyEnter:
-		// all done; make the call to add a player
-		if m.game, err = m.game.AddPlayer(m.nameInput.Value(), m.colorList.SelectedItem().(game.Color)); err != nil {
-			m.currentState = errorState
-			m.err = err
-		} else {
-			var players []list.Item
-			for _, player := range m.game.Players() {
-				players = append(players, player)
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, addPlayerKeyBinds.Cancel):
+			m.nameInput.Reset()
+			m.state = mainState
+		case key.Matches(msg, addPlayerKeyBinds.Submit):
+			// all done; make the call to add a player
+			if m.game, err = m.game.AddPlayer(m.nameInput.Value(), m.colorList.SelectedItem().(game.Color)); err != nil {
+				m.state = errorState
+				m.err = err
+			} else {
+				var players []list.Item
+				for _, player := range m.game.Players() {
+					players = append(players, player)
+				}
+				cmd = m.playerList.SetItems(players)
+				m.state = mainState
 			}
-			cmds = append(cmds, m.playerList.SetItems(players))
-			m.currentState = mainState
+			m.nameInput.Reset()
+		case key.Matches(msg, addPlayerKeyBinds.NextColor, addPlayerKeyBinds.PreviousColor):
+			// moving color selection up or down
+			m.colorList, cmd = m.colorList.Update(msg)
+		default:
+			// send everything else to the name field
+			m.nameInput, cmd = m.nameInput.Update(msg)
 		}
-		m.nameInput.Reset()
-	case ok && (keyMsg.Type == tea.KeyUp || keyMsg.Type == tea.KeyDown):
-		// moving color selection up or down
-		m.colorList, cmd = m.colorList.Update(msg)
-		cmds = append(cmds, cmd)
 	}
-	// send everything else to the name field
-	m.nameInput, cmd = m.nameInput.Update(msg)
-	cmds = append(cmds, cmd)
 
-	return m, tea.Batch(cmds...)
+	return m, cmd
 }
 
 func viewAddPlayerState(m model) string {
-	return ""
+	addPlayerContent := lipgloss.JoinVertical(
+		lipgloss.Center,
+		"AddPlayer",
+		m.nameInput.View(),
+		m.colorList.View(),
+	)
+
+	return assembleView(m.playerList.View(), renderHelpContent(m, addPlayerKeyBinds), addPlayerContent)
 }

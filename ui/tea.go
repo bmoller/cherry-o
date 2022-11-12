@@ -1,9 +1,6 @@
 package ui
 
 import (
-	"fmt"
-	"strings"
-
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -14,27 +11,84 @@ import (
 	"github.com/bmoller/cherry-o/game"
 )
 
+/*
+appState is used to track what the user is currently doing and what to display.
+
+If/when new states and functionality are added, the state should be added here with references to its handler functions.
+Each appState needs to have a function for update and view operations, corresponding to the Elm Architecture concepts.
+*/
 type appState int
 
 const (
+	// mainState represents the default view of the application; from here the user can move to any of the other appStates.
+	// Defined first so that it acts as default and a sane zero value.
 	mainState appState = iota
+	// errorState indicates that an error has occurred and displays it to the user.
 	errorState
+	// addPlayerState shows components used to add a new player to the game.
 	addPlayerState
+	// removePlayerState handles removal of an existing player from the game, assuming there are any.
 	removePlayerState
 )
 
-type model struct {
-	bindHelp     help.Model
-	colorList    list.Model
-	currentState appState
-	err          error
-	game         game.Game
-	nameInput    textinput.Model
-	playerList   list.Model
-	turnView     viewport.Model
-	winner       game.Player
+/*
+update calls the appState's function for handling event messages.
+Because the function receives a state and not the model itself, m must be passed along with msg.
+*/
+func (s appState) update(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
+	switch s {
+	case errorState:
+		return updateErrorState(msg, m)
+	case addPlayerState:
+		return updateAddPlayerState(msg, m)
+	case removePlayerState:
+		return updateRemovePlayerState(msg, m)
+	default:
+		return updateMainState(msg, m)
+	}
 }
 
+/*
+view calls the appState's function for rendering the current state of the application.
+As with update, the model must be passed in m so that components are accessible.
+*/
+func (s appState) view(m model) string {
+	switch s {
+	case errorState:
+		return viewErrorState(m)
+	case addPlayerState:
+		return viewAddPlayerState(m)
+	case removePlayerState:
+		return viewRemovePlayerState(m)
+	default:
+		return viewMainState(m)
+	}
+}
+
+type model struct {
+	// Used to display the current state's keybinds.
+	bindHelp help.Model
+	// Presents available colors to the user when adding a new player.
+	colorList list.Model
+	// The current error resulting in an errorState, if any.
+	err error
+	// An embedded game simulation; its outputs are presented to the user via the model.
+	game game.Game
+	// Used to query the name when adding a new player.
+	nameInput textinput.Model
+	// Displays the current players in the model's game.Game.
+	playerList list.Model
+	// Tracks the current state of the application, which determines how to update and display.
+	state appState
+	// Presents the list of turns from the most recent round of play.
+	turnView viewport.Model
+	// Tracks the winner from the most recent round of play.
+	winner game.Player
+}
+
+/*
+New creates and returns a model with defaults for a new execution.
+*/
 func New() tea.Model {
 	colorList := list.New(nil, colorsDelegate{}, 10, 6)
 	colorList.Title = "Select a Color"
@@ -51,7 +105,7 @@ func New() tea.Model {
 
 	helpModel := help.New()
 	helpModel.ShowAll = true
-	helpModel.Width = 30
+	helpModel.Width = 36
 
 	playerList := list.New(nil, playersDelegate{}, 30, 7)
 	playerList.Title = "Players"
@@ -65,6 +119,9 @@ func New() tea.Model {
 		function(false)
 	}
 	playerList.SetStatusBarItemName("player", "players")
+	playerList.SetWidth(26)
+
+	viewportModel := viewport.New(74, 50)
 
 	return model{
 		bindHelp:   helpModel,
@@ -72,109 +129,61 @@ func New() tea.Model {
 		game:       game.Game{},
 		nameInput:  textinput.New(),
 		playerList: playerList,
-		turnView:   viewport.New(50, 25),
+		state:      mainState,
+		turnView:   viewportModel,
 	}
 }
 
+/*
+Init meets the requirements of the tea.Model interface but is currently a no-op.
+*/
 func (m model) Init() tea.Cmd {
 	return nil
 }
 
+/*
+Update passes event messages to the current state per requirements of the tea.Model interface.
+*/
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Break glass functionality
 	if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.Type == tea.KeyCtrlC {
 		return m, tea.Quit
 	}
 
-	switch m.currentState {
-	case errorState:
-		return updateErrorState(msg, m)
-	case addPlayerState:
-		return updateAddPlayerState(msg, m)
-	case removePlayerState:
-		return updateRemovePlayerState(msg, m)
-	default:
-		return updateMainState(msg, m)
-	}
+	return m.state.update(msg, m)
 }
 
-func renderTurns(turns []game.Turn) string {
-	// spinnerValues = [7]int{1, 2, 3, 4, -2, -2, -10}
-	var (
-		format   string
-		output   strings.Builder
-		renderer func(string) string
-	)
-
-	for _, turn := range turns {
-		switch turn.Spin {
-		case -10:
-			format = "Oh no! %s lost 10 cherries!\n"
-		case -2:
-			format = "Uh-oh, %s lost 2 cherries.\n"
-		case 1:
-			format = "%s got another cherry.\n"
-		case 2:
-			format = "Hey, %s got 2 more cherries!\n"
-		case 3:
-			format = "Yay, %s got 3 more cherries!\n"
-		case 4:
-			format = "Hooray, %s got 4 more cherries!\n"
-		}
-
-		switch turn.Player.Color() {
-		case game.Blue:
-			renderer = styleBlue.Render
-		case game.Green:
-			renderer = styleGreen.Render
-		case game.Red:
-			renderer = styleRed.Render
-		case game.Yellow:
-			renderer = styleYellow.Render
-		}
-
-		output.WriteString(renderer(fmt.Sprintf(format, turn.Player.Name)))
-	}
-
-	return output.String()
-}
-
+/*
+View renders the current state per requirements of the tea.Model interface.
+*/
 func (m model) View() string {
-	switch m.currentState {
-	case errorState:
-		return viewErrorState(m)
-	case addPlayerState:
-		return viewAddPlayerState(m)
-	case removePlayerState:
-		return viewRemovePlayerState(m)
-	default:
-		return viewMainState(m)
-	}
+	return m.state.view(m)
+}
 
-	leftSide := lipgloss.JoinVertical(lipgloss.Left,
-		playersPane.Render(m.playerList.View()),
-		helpPane.Render(lipgloss.JoinVertical(lipgloss.Center,
-			helpTitle,
-			m.bindHelp.View(mainKeyBinds))),
+/*
+renderHelpContent renders keyMap's view in the help view component of m.
+*/
+func renderHelpContent(m model, keyMap help.KeyMap) string {
+	return lipgloss.JoinVertical(
+		lipgloss.Center,
+		helpTitle,
+		m.bindHelp.View(keyMap),
 	)
-	var rightSide string
-	switch m.currentState {
-	case errorState:
-		rightSide = lipgloss.Place(50, 25,
-			lipgloss.Center, lipgloss.Center,
-			styleErrorMsg.Render(m.err.Error()),
-			lipgloss.WithWhitespaceChars("-"),
-			lipgloss.WithWhitespaceForeground(yellow))
-	case addPlayerState:
-		rightSide = lipgloss.JoinVertical(lipgloss.Center,
-			"Add a Player",
-			m.nameInput.View(),
-			m.colorList.View())
-	default:
-		rightSide = m.turnView.View()
-	}
+}
 
-	return lipgloss.JoinHorizontal(lipgloss.Top,
-		leftSide, rightPane.Render(rightSide),
+/*
+assembleView puts the content pieces together according to the designed layout.
+The playersContent, helpContent, and mainContent will each be placed in their appropriate locations in the view.
+appStates simply need to determine what they want placed in each pane and pass the content to this function.
+*/
+func assembleView(playersContent string, helpContent string, mainContent string) string {
+	return lipgloss.JoinVertical(
+		lipgloss.Left,
+		mainPane.Render(mainContent),
+		lipgloss.JoinHorizontal(
+			lipgloss.Top,
+			playersPane.Render(playersContent),
+			helpPane.Render(helpContent),
+		),
 	)
 }
