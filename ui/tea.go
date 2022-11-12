@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
@@ -23,8 +22,6 @@ Each appState needs to have a function for update and view operations, correspon
 type appState int
 
 const (
-	// blockChar is a reference to a filled-in character space useful for drawing, or displaying colors.
-	blockChar string = "█"
 	// mainState represents the default view of the application; from here the user can move to any of the other appStates.
 	// Defined first so that it acts as default and a sane zero value.
 	mainState appState = iota
@@ -111,6 +108,7 @@ func New() tea.Model {
 	helpModel.Width = 36
 
 	viewportModel := viewport.New(74, 50)
+	viewportModel.Style = viewportModel.Style.Copy().Padding(1, 2)
 
 	return model{
 		bindHelp:  helpModel,
@@ -166,43 +164,54 @@ func renderHelpContent(m model, keyMap help.KeyMap) string {
 }
 
 /*
- */
-func renderPlayers(m model, players []game.Player, selected int) string {
-	var rows []string
+renderPlayers takes players and renders it for proper display.
+If m has a winner set that winner will be marked as such in the output.
+Additionally, if selected is a valid int from the range of players, the corresponding player will be highlighted.
+*/
+func renderPlayers(m model, selected int) string {
+	var (
+		players = m.game.Players()
+		rows    []string
+	)
 
-	for _, player := range players {
+	for i := 0; i < len(players); i++ {
 		var (
-			playerColor  string
-			playerWinner string
+			name        string
+			playerColor lipgloss.Style
+			prefix      string
 		)
 
-		switch player.Color() {
+		switch players[i].Color() {
 		case game.Blue:
-			playerColor = styleBlue.Render(blockChar)
+			playerColor = styleBlue
 		case game.Green:
-			playerColor = styleGreen.Render(blockChar)
+			playerColor = styleGreen
 		case game.Red:
-			playerColor = styleRed.Render(blockChar)
+			playerColor = styleRed
 		case game.Yellow:
-			playerColor = styleYellow.Render(blockChar)
+			playerColor = styleYellow
 		}
 
-		if m.winner.Name == player.Name {
-			playerWinner = "👑"
+		if len(players[i].Name) <= (26 - 3) { // content width after padding, minus the prefix
+			name = players[i].Name
 		} else {
-			playerWinner = "  "
+			name = players[i].Name[:26-5] + "…" // leave two spaces for potential double-width rendering of ellipsis
 		}
 
-		rows = append(rows, fmt.Sprintf(
-			"%s %s%s%s",
-			playerColor,
-			player.Name,
-			strings.Repeat(" ", 26-4-len(player.Name)),
-			playerWinner))
+		if i == selected {
+			prefix = " > "
+			playerColor = playerColor.Copy().Background(violet)
+		} else if m.winner.Name == players[i].Name {
+			prefix = "👑 "
+		} else {
+			prefix = "   "
+		}
+
+		rows = append(rows, prefix+playerColor.Render(name))
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Center,
-		"Players",
+	return lipgloss.JoinVertical(lipgloss.Left,
+		playersTitle,
 		strings.Join(rows, "\n"))
 }
 

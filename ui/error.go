@@ -51,11 +51,11 @@ var (
 )
 
 func viewErrorState(m model) string {
-	errorContent := lipgloss.Place(50, 25,
+	errorContent := lipgloss.Place(mainPane.GetWidth(), mainPane.GetHeight(),
 		lipgloss.Center, lipgloss.Center,
 		styleErrorMsg.Render(m.err.Error()),
 		lipgloss.WithWhitespaceChars("-"),
 		lipgloss.WithWhitespaceForeground(yellow))
 
-	return assembleView(renderPlayers(m, m.game.Players(), -1), renderHelpContent(m, errorKeyBinds), errorContent)
+	return assembleView(renderPlayers(m, -1), renderHelpContent(m, errorKeyBinds), errorContent)
 }

@@ -59,10 +59,7 @@ var mainKeyBinds = mainKeyMap{
 }
 
 func updateMainState(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
-	var (
-		cmd tea.Cmd
-		err error
-	)
+	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -102,12 +99,7 @@ func updateMainState(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				m.err = errors.New("no players to remove")
 				m.state = errorState
 			} else {
-				if m.game, err = m.game.RemovePlayer(m.winner.Name); err != nil {
-					m.err = err
-					m.state = errorState
-				} else {
-					m.state = mainState
-				}
+				m.state = removePlayerState
 			}
 		case key.Matches(msg, mainKeyBinds.ScrollDown, mainKeyBinds.ScrollUp):
 			m.turnView, cmd = m.turnView.Update(msg)
@@ -164,5 +156,5 @@ func renderTurns(turns []game.Turn) string {
 }
 
 func viewMainState(m model) string {
-	return assembleView(renderPlayers(m, m.game.Players(), -1), renderHelpContent(m, mainKeyBinds), m.turnView.View())
+	return assembleView(renderPlayers(m, -1), renderHelpContent(m, mainKeyBinds), m.turnView.View())
 }

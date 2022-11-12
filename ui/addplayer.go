@@ -129,5 +129,5 @@ func viewAddPlayerState(m model) string {
 		m.colorList.View(),
 	)
 
-	return assembleView(renderPlayers(m, m.game.Players(), -1), renderHelpContent(m, addPlayerKeyBinds), addPlayerContent)
+	return assembleView(renderPlayers(m, -1), renderHelpContent(m, addPlayerKeyBinds), addPlayerContent)
 }
