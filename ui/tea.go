@@ -204,7 +204,7 @@ func renderPlayers(m model, selected int) string {
 
 		if i == selected {
 			prefix = " > "
-			playerColor = playerColor.Copy().Background(violet)
+			playerColor = playerColor.Copy().Background(white)
 		} else if m.winner.Name == players[i].Name {
 			prefix = "👑 "
 		} else {

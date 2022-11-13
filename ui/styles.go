@@ -16,17 +16,28 @@ const (
 var (
 	// Color values
 
-	blue = lipgloss.Color("#268bd2")
+	//blue = lipgloss.Color("#268bd2")
+	////lint:ignore U1000 defining full color scheme
+	//cyan    = lipgloss.Color("#2aa198")
+	//green   = lipgloss.Color("#859900")
+	//magenta = lipgloss.Color("#d33682")
+	////lint:ignore U1000 defining full color scheme
+	//orange = lipgloss.Color("#cb4b16")
+	//red    = lipgloss.Color("#dc322f")
+	////lint:ignore U1000 defining full color scheme
+	//violet = lipgloss.Color("#6c71c4")
+	//yellow = lipgloss.Color("#b58900")
+
 	//lint:ignore U1000 defining full color scheme
-	cyan    = lipgloss.Color("#2aa198")
-	green   = lipgloss.Color("#859900")
-	magenta = lipgloss.Color("#d33682")
+	black = lipgloss.Color("0")
+	blue  = lipgloss.Color("4")
 	//lint:ignore U1000 defining full color scheme
-	orange = lipgloss.Color("#cb4b16")
-	red    = lipgloss.Color("#dc322f")
-	//lint:ignore U1000 defining full color scheme
-	violet = lipgloss.Color("#6c71c4")
-	yellow = lipgloss.Color("#b58900")
+	cyan    = lipgloss.Color("6")
+	green   = lipgloss.Color("2")
+	magenta = lipgloss.Color("5")
+	red     = lipgloss.Color("1")
+	yellow  = lipgloss.Color("3")
+	white   = lipgloss.Color("7")
 
 	styleBlue = lipgloss.NewStyle().
 			Foreground(blue)
